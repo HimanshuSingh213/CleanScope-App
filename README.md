@@ -1,53 +1,75 @@
 # CleanScope
 
 <div align="center">
-  <h3>Intelligent Windows Disk Analysis & Deterministic Safe Cleanup</h3>
+  <h3>Windows Disk Analysis & Deterministic Safe Cleanup</h3>
   <p><strong>A high-speed, explainable disk analyzer for Windows power users and developers.</strong></p>
   <p>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-blue?style=flat-square" alt="Platform">
     <img src="https://img.shields.io/badge/Backend-Rust%20%2F%20Tauri%202-orange?style=flat-square" alt="Backend">
     <img src="https://img.shields.io/badge/Frontend-React%20%2F%20TypeScript%20%2F%20Tailwind-blueviolet?style=flat-square" alt="Frontend">
-    <img src="https://img.shields.io/badge/AI-Gemini%203.5%20Flash--Lite%20%7C%20Local%20Qwen-emerald?style=flat-square" alt="AI">
+    <img src="https://img.shields.io/badge/Diagnostics-Gemini%20%7C%20Local%20Qwen-emerald?style=flat-square" alt="Diagnostics">
     <img src="https://img.shields.io/badge/Safety-Deterministic%20Guarantees-success?style=flat-square" alt="Safety">
-    <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License">
   </p>
 </div>
 
 ---
 
-## ⚡ Why CleanScope?
+## Why CleanScope?
 
-Traditional disk cleanup utilities use vague labels like *"Junk Files"* or *"System Optimization"* and delete files without explaining why they exist, whether anything is using them, or what consequences will occur.
+Traditional cleanup tools use vague labels like *"Junk"* or *"System Boost"* and delete files without explainability, process lock verification, or safety bounds.
 
-**CleanScope** is designed with **Safety-First Determinism and Transparent Explainability**:
-1. **Never guesses or destroys without explanation**: Every discovered candidate item explicitly answers 4 fundamental questions.
-2. **Deterministic Safety Engine as the Final Authority**: AI models can assist with technical explainability and classification, but **cannot override deterministic safety rules** or authorize the deletion of protected Windows paths.
-3. **Windows Recycle Bin by Default**: Deletions are sent to the Windows Recycle Bin with rollback capability (`SHFileOperationW`), not permanently shredded.
-4. **Active Process Lock Detection**: Uses the Windows Restart Manager API to detect active process locks and prevent deleting files in active use.
+**CleanScope** is designed with **Deterministic Safety and Transparent Explainability**:
+1. **Verifiable Explainability**: Every discovered item explicitly answers 4 fundamental questions before deletion.
+2. **Deterministic Safety Engine as the Final Authority**: AI models assist with technical diagnostics and inquiry, but **cannot override deterministic safety rules** or authorize the deletion of protected Windows paths.
+3. **Windows Recycle Bin by Default**: Cleanups route items to the Windows Recycle Bin (`SHFileOperationW`) with full undo capability.
+4. **Active Process Lock Detection**: Uses the Windows Restart Manager API to detect active process locks and avoid deleting files in active use.
 
 ---
 
-## 💎 Key Features
+## Key Features
 
-- **High-Speed Atomic Directory Pruning**: Traverses entire disposable trees (`node_modules`, `.next`, `target`, `bin`/`obj`, `__pycache__`, browser caches, crash dumps) as atomic units in a single pass without recursively choking on millions of nested files.
+- **High-Speed Atomic Directory Pruning**: Traverses entire disposable trees (`node_modules`, `.next`, `target`, `bin`/`obj`, `__pycache__`, browser caches, crash dumps) as atomic units in a single pass without choking on millions of nested files.
 - **The 4 Fundamental Questions**:
-  - `1. What exactly is this?`
+  - `1. What is this item?`
   - `2. Why is it on my computer?`
   - `3. Is anything currently using it?`
   - `4. What happens if I remove it?`
-- **Interactive Deep AI Reasoning Workspace**:
-  - Ask custom questions directly to Gemini models (`gemini-3.5-flash-lite`, `gemini-3.7-flash`, `gemini-2.5-flash`, `gemini-2.5-pro`) or local `llama.cpp` (`Qwen 0.8B`).
+- **Technical Explainability & Diagnostic Workspace**:
+  - Ask custom questions directly to Gemini models or local `llama.cpp` (`Qwen 0.8B`).
   - Diagnose exact build systems, frameworks, and recreation paths (e.g., `npm install`, `cargo build`, browser auto-rebuild).
+- **Multi-Drive Full-Disk Scanning**: Discovers candidates across `C:\`, `D:\`, `E:\`, `F:\` and all fixed drives up to 12 directory levels deep.
 - **Two-Pass Duplicate Detection**: Exact byte-size clustering followed by 4KB partial header checks and cryptographic SHA-256 validation.
-- **Developer & Application Storage Analyzers**: Dedicated inspection views for dev ecosystems (Node, Rust, Python, Gradle, Docker, NuGet, Go) and popular applications.
-- **Danger Zone & Self-Purge**:
-  - One-click reset for CleanScope local caches and history under `%LOCALAPPDATA%\CleanScope\`.
-  - Self-purge uninstallation with confirmation validation that completely removes app files and binary from the system.
-- **Deep Dark OLED UI**: Built for technical users with a sleek dark palette (`#050505`), high-contrast typography, crisp Lucide icons, and zero emojis.
+- **Large File Detection**: Automatically surfaces standalone files 100 MB or larger across all drives.
+- **Developer & Application Storage Analyzers**: Dedicated inspection views for dev ecosystems (Node, Rust, Python, Gradle, Docker, NuGet, Go) and popular desktop applications.
+- **Protected Boundaries Inspector**: Built-in transparency modal showing exactly which Windows system paths are excluded from scanning and why, accessible from any page.
+- **Dark OLED Interface**: Built for technical users with a sleek dark palette (`#050505`), high-contrast typography, and crisp Lucide icons.
 
 ---
 
-## 🛡️ The CleanScope Safety Architecture
+## What CleanScope Scans
+
+| Category | Targets |
+| :--- | :--- |
+| **All Fixed Drives** | `C:\`, `D:\`, `E:\`, `F:\` — full directory trees, 12 levels deep |
+| **Developer Ecosystems** | `node_modules`, `.next`, `target`, `bin/obj`, `__pycache__`, `.gradle`, `.nuget`, `.cargo`, `.docker` |
+| **System Caches** | `%LOCALAPPDATA%\Temp`, `C:\Windows\Temp`, browser caches, GPU shader caches, crash dumps |
+| **Large Files** | Standalone files >= 100 MB (ISOs, VMDKs, archives) |
+| **Duplicates** | Exact SHA-256 binary duplicate groups across all drives |
+
+## What CleanScope Never Touches
+
+| Protected Boundary | Reason |
+| :--- | :--- |
+| `C:\Windows\System32`, `SysWOW64`, `WinSxS` | Core operating system binaries |
+| `C:\boot`, `pagefile.sys`, `hiberfil.sys`, `swapfile.sys` | Boot infrastructure and virtual memory |
+| `*\System Volume Information`, `*\Recovery` | System restore and recovery partitions |
+| `*\$Recycle.Bin` | Windows Recycle Bin containers |
+| Registry hives (`SAM`, `SYSTEM`, `SECURITY`, `NTUSER.DAT`) | Security and credentials databases |
+| Drive roots (`C:\`, `D:\`, etc.) | Partition mount points |
+
+---
+
+## Safety Architecture
 
 ```text
 Filesystem Scan / Candidate Discovery
@@ -63,8 +85,8 @@ Filesystem Scan / Candidate Discovery
                       │
         ┌─────────────┴─────────────┐
         ▼                           ▼
-[ Deterministic Rules ]     [ AI Reasoning Engine ]
-- Instant offline cache     - Gemini 3.5 Flash-Lite / Local LLM
+[ Deterministic Rules ]     [ Diagnostic Reasoning ]
+- Instant offline cache     - Gemini Flash / Local LLM
 - 50+ curated frameworks    - Metadata-only transmission
 - Zero network latency      - Deep technical explainability
         │                           │
@@ -80,7 +102,31 @@ Filesystem Scan / Candidate Discovery
 
 ---
 
-## 🚀 Getting Started
+## Direct Download & Installation
+
+To install and run CleanScope directly on your Windows PC:
+
+1. Go to the [Releases](https://github.com/HimanshuSingh213/CleanScope-App/releases) page on GitHub.
+2. Download the latest installer:
+   - **`CleanScope_x64-setup.exe`**: Standard Windows installer (recommended).
+   - **`cleanscope.exe`**: Standalone portable binary (run directly without installing).
+3. Launch the application and click **Start Storage Scan**.
+
+---
+
+## System Requirements
+
+| Component | Minimum | Recommended |
+| :--- | :--- | :--- |
+| **Operating System** | Windows 10 (64-bit, 2004+) | Windows 11 (64-bit) |
+| **Processor** | Dual-Core x86_64 @ 2.0 GHz | Quad-Core (Core i5 / Ryzen 5+) |
+| **Memory (RAM)** | 2 GB | 4 GB+ for fast multi-threaded scanning |
+| **Disk Type** | Any HDD / SSD (100 MB free) | NVMe / SSD for ultra-fast scanning |
+| **Runtime** | Microsoft Edge WebView2 *(included with Windows 10/11)* | Evergreen WebView2 |
+
+---
+
+## Building from Source
 
 ### Prerequisites
 - Windows 10 (64-bit, Version 2004+) or Windows 11
@@ -88,73 +134,67 @@ Filesystem Scan / Candidate Discovery
 - [Rust](https://rustup.rs/) (stable toolchain)
 - MinGW / UCRT64 GCC (if building with GNU toolchain)
 
-### Installation & Development
+### Local Development
 
 ```powershell
 # 1. Clone the repository
 git clone https://github.com/HimanshuSingh213/CleanScope-App.git
 cd CleanScope-App
 
-# 2. Install frontend dependencies
+# 2. Install dependencies
 npm install
 
-# 3. Start development desktop application
+# 3. Start development desktop app
 npm run dev:app
 ```
 
----
-
-## 📦 Building Standalone Release Binary (`.exe`)
-
-You can generate a standalone portable `.exe` or an NSIS Windows installer:
+### Building the Release Executable (`.exe`)
 
 ```powershell
-# Quick build script
-.\build-exe.ps1
-```
-
-Or via Tauri CLI:
-```powershell
-$env:PATH = "C:\Users\Himanshu Singh\.cargo\bin;C:\msys64\ucrt64\bin;$env:PATH"
-$env:CARGO_TARGET_DIR = "C:\Users\Himanshu Singh\AppData\Local\Temp\cargo-target-cleanscope"
-
 npm run tauri build
 ```
 
-The output executables will be available at:
-- **Standalone Portable `.exe`**: `target/release/cleanscope.exe` (Single file, no installation required)
-- **Windows NSIS Installer**: `target/release/bundle/nsis/CleanScope_0.1.0_x64-setup.exe`
+Output executables will be at:
+- **Portable `.exe`**: `src-tauri/target/release/cleanscope.exe`
+- **Windows Installer**: `src-tauri/target/release/bundle/nsis/CleanScope_x64-setup.exe`
 
 ---
 
-## 🤖 AI Configuration (Optional)
+## Technical Diagnostics Configuration (Optional)
 
-CleanScope operates fully offline by default. If you wish to enable cloud or local AI explainability:
+CleanScope works fully offline by default with no AI features — the safety engine and candidate detection are entirely rule-based and require no network access.
 
-### Google Gemini Cloud (Recommended)
-1. Open CleanScope and navigate to **Settings -> AI Explanation & Ambiguity Analysis**.
-2. Paste your Google Gemini API key.
-3. Select `gemini-3.5-flash-lite` (Recommended / Ultra Fast) or any Gemini 2.5/3.x model.
-4. Click **Test Connection**.
+AI diagnostics are optional and provide human-readable explanations for ambiguous candidates:
 
-### Local LLM (`llama.cpp`)
-1. Place `llama-server.exe` and `Qwen2.5-0.8B-Instruct-Q4_0.gguf` inside `%LOCALAPPDATA%\CleanScope\models\`.
-2. Start the local server:
+### Google Gemini Cloud (Easiest)
+1. Open CleanScope and go to **Settings -> AI Explanation & Ambiguity Analysis**.
+2. Paste your Google Gemini API key (free tier available at [aistudio.google.com](https://aistudio.google.com)).
+3. Select a model (e.g. `gemini-2.5-flash-lite`) and click **Test Connection**.
+
+### Local LLM via `llama.cpp` (Fully Offline)
+CleanScope does **not** auto-start or bundle a local model — you need to run the server yourself before enabling this mode.
+
+1. Download `llama-server.exe` from the [llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases) page.
+2. Download the model: `Qwen2.5-0.8B-Instruct-Q4_0.gguf` from Hugging Face.
+3. Start the server manually in a terminal:
    ```powershell
-   llama-server.exe -m "%LOCALAPPDATA%\CleanScope\models\Qwen2.5-0.8B-Instruct-Q4_0.gguf" --port 8080 -c 2048
+   llama-server.exe -m "C:\path\to\Qwen2.5-0.8B-Instruct-Q4_0.gguf" --port 8080 -c 2048
    ```
-3. Set AI Provider Mode to **Local Qwen 0.8B** or **Hybrid**.
+4. In CleanScope **Settings**, set the AI Provider Mode to **Local Qwen 0.8B** or **Hybrid** and set the server URL to `http://127.0.0.1:8080`.
 
 ---
 
-## 🔒 Privacy & Data Policies
+## Privacy & Data
 
-- **Metadata Only**: AI queries transmit only path attributes, byte sizes, and timestamps. CleanScope **never** inspects, reads, or transmits the contents of your files.
+- **Metadata Only**: Diagnostic queries transmit only path attributes, byte sizes, and timestamps — never file contents.
 - **Zero Telemetry**: No cloud telemetry, tracking IDs, or remote usage collection.
-- **Local Persistence**: All settings, scan reports, and caches are stored locally under `%LOCALAPPDATA%\CleanScope\`.
+- **Local Persistence**: All settings, scan reports, and caches stored locally under `%LOCALAPPDATA%\CleanScope\`.
 
 ---
 
-## 📄 License
+## Contributing
 
-This project is licensed under the [MIT License](./LICENSE). Built with Tauri 2, Rust, React, TypeScript, and Tailwind CSS.
+Contributions, bug reports, performance enhancements, and new knowledge rules are welcome.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for architecture principles, local setup, and pull request guidelines.
+
+Created and maintained by **[Himanshu Singh](https://github.com/HimanshuSingh213)**.

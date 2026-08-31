@@ -28,6 +28,8 @@ import { DeveloperStorageView } from './views/DeveloperStorageView';
 import { HistoryView } from './views/HistoryView';
 import { SettingsView } from './views/SettingsView';
 import { FirstRunModal } from './components/FirstRunModal';
+import { AboutModal } from './components/AboutModal';
+import { ProtectedPathsModal } from './components/ProtectedPathsModal';
 import { Toaster } from 'sonner';
 
 import { useAppStore, TabType } from './store/useAppStore';
@@ -53,6 +55,8 @@ export default function App() {
   const [drives, setDrives] = useState<DriveInfo[]>([]);
   const [lastScanReport, setLastScanReport] = useState<ScanReport | null>(null);
   const [lastCleanupReport, setLastCleanupReport] = useState<CleanupReport | null>(null);
+  const [showAboutModal, setShowAboutModal] = useState<boolean>(false);
+  const [showProtectedPathsModal, setShowProtectedPathsModal] = useState<boolean>(false);
 
   // Initialize data and listeners
   useEffect(() => {
@@ -172,18 +176,31 @@ export default function App() {
         </div>
 
         {/* Sidebar Footer Status */}
-        <div className="p-3 rounded-lg bg-[#070707] border border-[#141414] space-y-1.5">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-[#71717a]">Safety Engine</span>
-            <span className="text-emerald-400 font-medium flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-              Active
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-[#71717a]">Recycle Bin</span>
-            <span className="text-[#a1a1aa]">Default</span>
-          </div>
+        <div className="space-y-2">
+          <button
+            onClick={() => setShowProtectedPathsModal(true)}
+            className="w-full p-3 rounded-lg bg-[#070707] border border-[#141414] hover:border-[#222222] transition-colors space-y-1.5 text-left outline-none"
+            title="Click to view all protected Windows system boundaries"
+          >
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-[#71717a]">Safety Engine</span>
+              <span className="text-emerald-400 font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                Active
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-[#71717a]">Recycle Bin</span>
+              <span className="text-[#a1a1aa]">Default</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setShowAboutModal(true)}
+            className="w-full px-3 py-2 rounded-lg bg-[#0c0c0e] border border-[#18181b] hover:border-[#27272a] hover:bg-[#121214] text-zinc-400 hover:text-zinc-200 text-xs font-medium flex items-center justify-between transition-colors outline-none"
+          >
+            <span>About CleanScope</span>
+          </button>
         </div>
       </aside>
 
@@ -197,11 +214,22 @@ export default function App() {
             </h1>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-950/40 text-emerald-400 border border-emerald-800/30">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setShowProtectedPathsModal(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-emerald-950/40 text-emerald-400 border border-emerald-800/30 hover:bg-emerald-950/60 transition-colors outline-none cursor-pointer"
+              title="Click to view all protected Windows system boundaries"
+            >
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
               System Paths Protected
-            </span>
+            </button>
+
+            <button
+              onClick={() => setShowAboutModal(true)}
+              className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-[#141416] text-zinc-400 border border-[#222] hover:text-zinc-200 hover:bg-[#1a1a1d] transition-colors outline-none cursor-pointer"
+            >
+              About
+            </button>
           </div>
         </header>
 
@@ -230,6 +258,18 @@ export default function App() {
           {activeTab === 'settings' && <SettingsView />}
         </div>
       </main>
+
+      {/* About CleanScope Modal */}
+      <AboutModal
+        isOpen={showAboutModal}
+        onClose={() => setShowAboutModal(false)}
+      />
+
+      {/* Protected Windows System Boundaries Modal */}
+      <ProtectedPathsModal
+        isOpen={showProtectedPathsModal}
+        onClose={() => setShowProtectedPathsModal(false)}
+      />
 
       {/* First Run Privacy & Introduction Modal */}
       {showFirstRun && (

@@ -108,6 +108,7 @@ impl Scanner {
     pub fn get_default_scan_paths() -> Vec<PathBuf> {
         let mut paths = Vec::new();
 
+        // 1. High-yield user cache & temp locations
         if let Some(local_app_data) = dirs::data_local_dir() {
             paths.push(local_app_data.join("Temp"));
             paths.push(local_app_data);
@@ -127,17 +128,16 @@ impl Scanner {
             paths.push(home.join("source"));
             paths.push(home.join("Desktop"));
             paths.push(home.join("Documents"));
+            paths.push(home.join("Videos"));
         }
 
         paths.push(PathBuf::from("C:\\Windows\\Temp"));
 
-        // Scan active workspace/code playground parent directory if on secondary drives
+        // 2. Discover and add all detected logical drive mount points (C:\, D:\, E:\, F:\, etc.)
         for drive in Self::get_drives() {
-            if !drive.is_system {
-                let p = PathBuf::from(&drive.mount_point);
-                if p.exists() {
-                    paths.push(p);
-                }
+            let p = PathBuf::from(&drive.mount_point);
+            if p.exists() {
+                paths.push(p);
             }
         }
 
@@ -189,6 +189,8 @@ impl Scanner {
 
                 let path = entry.path();
                 let is_dir = entry.file_type().is_dir();
+                let norm_path = SafetyEngine::normalize_path(path);
+                let is_root_target = entry.depth() == 0 || (norm_path.len() <= 3 && (norm_path.ends_with(":\\") || norm_path.ends_with(':') || norm_path.ends_with(":/")));
 
                 // Skip reparse points and junctions to avoid infinite or circular traversal
                 if SafetyEngine::is_reparse_point(path) {
@@ -198,12 +200,17 @@ impl Scanner {
                     continue;
                 }
 
-                // Never descend into protected Windows/system paths
+                // Never descend into protected Windows/system paths (e.g. System32, $Recycle.Bin, System Volume Information)
                 let (is_protected, _) = self.safety.is_protected_path(path);
-                if is_protected {
+                if is_protected && !is_root_target {
                     if is_dir {
                         walker.skip_current_dir();
                     }
+                    continue;
+                }
+
+                // Root drives/targets themselves are not candidates, but their contents must be traversed!
+                if is_root_target {
                     continue;
                 }
 
@@ -219,7 +226,6 @@ impl Scanner {
                             total_files += dir_count as u64;
                             total_bytes += dir_size;
 
-                            let norm_path = SafetyEngine::normalize_path(path);
                             let id = format!("{:x}", Sha256::digest(norm_path.as_bytes()));
                             let fingerprint = format!("{:x}", Sha256::digest(format!("{}:{}:dir", norm_path, dir_size).as_bytes()));
 
@@ -294,7 +300,6 @@ impl Scanner {
                 total_files += 1;
                 total_bytes += size;
 
-                let norm_path = SafetyEngine::normalize_path(path);
                 let ext = path.extension().and_then(|s| s.to_str()).map(|s| s.to_string());
 
                 // Match against Knowledge Base rules
@@ -337,6 +342,37 @@ impl Scanner {
 
                         candidates.push(candidate);
                     }
+                } else if !is_dir && size >= 100 * 1024 * 1024 {
+                    // 3. Standalone Large File Detection (Files >= 100 MB across all drives)
+                    let id = format!("{:x}", Sha256::digest(norm_path.as_bytes()));
+                    let fingerprint = format!("{:x}", Sha256::digest(format!("{}:{}:large", norm_path, size).as_bytes()));
+
+                    let candidate = FileCandidate {
+                        id,
+                        path: path.to_string_lossy().to_string(),
+                        name: entry.file_name().to_string_lossy().to_string(),
+                        extension: ext.clone(),
+                        size_bytes: size,
+                        created_at: None,
+                        modified_at: None,
+                        accessed_at: None,
+                        category: CategoryType::LargeFile,
+                        risk_level: RiskLevel::Review,
+                        confidence: 0.90,
+                        in_use: false,
+                        owning_process: None,
+                        related_application: None,
+                        delete_effect: "Removing this large file will immediately reclaim storage space. Ensure you have backed up any critical personal content.".to_string(),
+                        explanation: format!("Large standalone file occupying {:.2} GB on disk.", size as f64 / 1_073_741_824.0),
+                        evidence: vec![format!("File size exceeds 100 MB threshold ({} bytes)", size)],
+                        is_directory: false,
+                        item_count: None,
+                        ai_provider: Some("rules".to_string()),
+                        fingerprint: Some(fingerprint),
+                    };
+
+                    potential_cleanup_bytes += size;
+                    candidates.push(candidate);
                 }
 
                 // Throttle progress updates to ~80ms
@@ -414,7 +450,7 @@ impl Scanner {
 
         // 1. Group files by size
         for target in targets {
-            for entry in WalkDir::new(target).max_depth(6).into_iter().flatten() {
+            for entry in WalkDir::new(target).max_depth(12).into_iter().flatten() {
                 if entry.file_type().is_file() {
                     if let Ok(metadata) = entry.metadata() {
                         let size = metadata.len();
@@ -509,7 +545,7 @@ impl Scanner {
         let mut large_files = Vec::new();
 
         for target in targets {
-            for entry in WalkDir::new(target).max_depth(6).into_iter().flatten() {
+            for entry in WalkDir::new(target).max_depth(12).into_iter().flatten() {
                 if entry.file_type().is_file() {
                     if let Ok(metadata) = entry.metadata() {
                         let size = metadata.len();

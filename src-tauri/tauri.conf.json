@@ -35,6 +35,9 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "copyright": "Copyright (c) 2026 CleanScope Authors",
+    "shortDescription": "Intelligent Windows Disk Analysis & Safe Cleanup",
+    "longDescription": "CleanScope is an explainable Windows storage diagnostic and safe cleanup utility with deterministic safety guarantees."
   }
 }

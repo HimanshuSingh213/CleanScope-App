@@ -69,6 +69,7 @@ pub fn run() {
             commands::get_cleanup_history,
             commands::clear_history,
             commands::open_in_explorer,
+            commands::open_url,
             commands::test_gemini_key,
             commands::reset_app_data,
             commands::purge_and_uninstall,

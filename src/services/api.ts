@@ -87,6 +87,14 @@ export const api = {
     return await invoke('open_in_explorer', { path });
   },
 
+  openUrl: async (url: string): Promise<void> => {
+    try {
+      await invoke('open_url', { url });
+    } catch {
+      window.open(url, '_blank');
+    }
+  },
+
   testGeminiKey: async (apiKey: string, model?: string): Promise<string> => {
     return await invoke<string>('test_gemini_key', { apiKey, model });
   },

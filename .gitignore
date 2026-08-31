@@ -27,3 +27,8 @@ src-tauri/gen/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Internal Specs & Agent configs
+AGENTS.md
+GEMINI.md
+CleanScope_MASTER_SPEC.md

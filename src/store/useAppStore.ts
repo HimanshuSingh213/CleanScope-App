@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { 
   FileCandidate, 
+  DuplicateGroup,
   ScanProgressEvent, 
   ScanReport, 
   Settings, 
@@ -29,6 +30,11 @@ interface AppStoreState {
   lastScanReport: ScanReport | null;
   candidates: FileCandidate[];
   selectedIds: Set<string>;
+  
+  // Duplicates State
+  duplicates: DuplicateGroup[];
+  isLoadingDuplicates: boolean;
+  loadDuplicates: (force?: boolean) => Promise<void>;
   
   // Modals & Drawers
   activeDetailCandidate: FileCandidate | null;
@@ -93,6 +99,22 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   lastScanReport: null,
   candidates: [],
   selectedIds: new Set<string>(),
+
+  // Duplicates State
+  duplicates: [],
+  isLoadingDuplicates: false,
+  loadDuplicates: async (force?: boolean) => {
+    const current = get().duplicates;
+    if (!force && current.length > 0) return;
+    set({ isLoadingDuplicates: true });
+    try {
+      const groups = await api.getDuplicates();
+      set({ duplicates: groups, isLoadingDuplicates: false });
+    } catch (e) {
+      console.error('Failed to load duplicates:', e);
+      set({ isLoadingDuplicates: false });
+    }
+  },
 
   // Modals & Drawers
   activeDetailCandidate: null,

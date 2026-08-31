@@ -12,27 +12,15 @@ import { DuplicateGroup, FileCandidate } from '../types/candidate';
 import { formatBytes } from '../utils/formatters';
 import { CleanupReviewModal } from '../components/CleanupReviewModal';
 import { api } from '../services/api';
+import { useAppStore } from '../store/useAppStore';
 
 export const DuplicatesView: React.FC = () => {
-  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { duplicates: duplicateGroups, isLoadingDuplicates: isLoading, loadDuplicates } = useAppStore();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
 
-  const fetchDuplicates = async () => {
-    setIsLoading(true);
-    try {
-      const groups = await api.getDuplicates();
-      setDuplicateGroups(groups);
-    } catch (e) {
-      console.error('Failed to fetch duplicates:', e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchDuplicates();
+    loadDuplicates();
   }, []);
 
   const totalRecoverable = duplicateGroups.reduce((acc, g) => acc + g.recoverableBytes, 0);
@@ -98,7 +86,7 @@ export const DuplicatesView: React.FC = () => {
           </div>
 
           <button
-            onClick={fetchDuplicates}
+            onClick={() => loadDuplicates(true)}
             disabled={isLoading}
             className="p-2.5 rounded-lg bg-[#141414] border border-[#222222] text-[#a1a1aa] hover:text-[#f5f5f5] transition-colors"
             title="Re-scan duplicates"
@@ -173,7 +161,7 @@ export const DuplicatesView: React.FC = () => {
 
               {/* Duplicate item rows */}
               <div className="divide-y divide-[#121212]">
-                {group.items.map((item, iIdx) => {
+                {group.items.map((item: FileCandidate, iIdx: number) => {
                   const isSelected = selectedIds.has(item.id);
                   return (
                     <div
@@ -225,7 +213,7 @@ export const DuplicatesView: React.FC = () => {
           selectedCandidates={selectedCandidates}
           onClose={() => setShowReviewModal(false)}
           onCleanupComplete={() => {
-            fetchDuplicates();
+            loadDuplicates(true);
             setSelectedIds(new Set());
           }}
         />

@@ -14,8 +14,10 @@ import { CategoryBadge, RiskBadge } from '../components/Badges';
 import { CandidateDetailDrawer } from '../components/CandidateDetailDrawer';
 import { CleanupReviewModal } from '../components/CleanupReviewModal';
 import { api } from '../services/api';
+import { useAppStore } from '../store/useAppStore';
 
 export const LargeFilesView: React.FC = () => {
+  const { candidates: storeCandidates, refreshCandidates } = useAppStore();
   const [largeFiles, setLargeFiles] = useState<FileCandidate[]>([]);
   const [minSizeMB, setMinSizeMB] = useState<number>(100);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -25,9 +27,20 @@ export const LargeFilesView: React.FC = () => {
   const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
 
   const fetchLargeFiles = async (minMB: number) => {
+    const minBytes = minMB * 1024 * 1024;
+    
+    // 1. Instant 0ms memory filter if candidates already exist in store
+    if (storeCandidates.length > 0) {
+      const fromStore = storeCandidates
+        .filter((c) => !c.isDirectory && c.sizeBytes >= minBytes)
+        .sort((a, b) => b.sizeBytes - a.sizeBytes);
+      setLargeFiles(fromStore);
+      return;
+    }
+
+    // 2. Otherwise load via API
     setIsLoading(true);
     try {
-      const minBytes = minMB * 1024 * 1024;
       const files = await api.getLargeFiles(minBytes);
       setLargeFiles(files);
     } catch (e) {
@@ -39,7 +52,7 @@ export const LargeFilesView: React.FC = () => {
 
   useEffect(() => {
     fetchLargeFiles(minSizeMB);
-  }, [minSizeMB]);
+  }, [minSizeMB, storeCandidates]);
 
   const filteredFiles = largeFiles.filter((f) => {
     if (!searchQuery.trim()) return true;
@@ -107,7 +120,10 @@ export const LargeFilesView: React.FC = () => {
           </div>
 
           <button
-            onClick={() => fetchLargeFiles(minSizeMB)}
+            onClick={async () => {
+              await refreshCandidates();
+              fetchLargeFiles(minSizeMB);
+            }}
             disabled={isLoading}
             className="p-2 rounded-lg bg-[#141414] border border-[#222222] text-[#a1a1aa] hover:text-[#f5f5f5] transition-colors"
             title="Refresh Large Files"

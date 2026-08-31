@@ -177,6 +177,14 @@ pub async fn get_duplicates(
     targets: Option<Vec<String>>,
     state: State<'_, AppState>,
 ) -> Result<Vec<DuplicateGroup>, String> {
+    // 1. If duplicates are already computed and no custom target requested, return cached result
+    if targets.is_none() {
+        let dup_lock = state.duplicates.read().await;
+        if !dup_lock.is_empty() {
+            return Ok(dup_lock.clone());
+        }
+    }
+
     let target_paths: Vec<PathBuf> = match targets {
         Some(t) if !t.is_empty() => t.into_iter().map(PathBuf::from).collect(),
         _ => Scanner::get_default_scan_paths(),
@@ -202,8 +210,40 @@ pub async fn get_large_files(
     state: State<'_, AppState>,
 ) -> Result<Vec<FileCandidate>, String> {
     let min_size = min_size_bytes.unwrap_or(100 * 1024 * 1024); // default 100MB
-    let default_paths = Scanner::get_default_scan_paths();
 
+    // 1. First check if we already have candidates in memory from the primary Smart Scan
+    {
+        let cand_lock = state.candidates.read().await;
+        if !cand_lock.is_empty() {
+            let mut matched: Vec<FileCandidate> = cand_lock
+                .iter()
+                .filter(|c| !c.is_directory && c.size_bytes >= min_size)
+                .cloned()
+                .collect();
+            matched.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+            if !matched.is_empty() {
+                return Ok(matched);
+            }
+        }
+    }
+
+    // 2. Check if large_files cache is available
+    {
+        let large_lock = state.large_files.read().await;
+        if !large_lock.is_empty() {
+            let mut matched: Vec<FileCandidate> = large_lock
+                .iter()
+                .filter(|c| c.size_bytes >= min_size)
+                .cloned()
+                .collect();
+            matched.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
+            if !matched.is_empty() {
+                return Ok(matched);
+            }
+        }
+    }
+
+    let default_paths = Scanner::get_default_scan_paths();
     let large_files = tokio::task::spawn_blocking(move || {
         Scanner::find_large_files(&default_paths, min_size)
     })
@@ -380,6 +420,23 @@ pub fn open_in_explorer(path: String) -> Result<(), String> {
     }
     #[cfg(not(windows))]
     {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("Failed to open browser URL: {}", e))?;
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = url;
         Ok(())
     }
 }
