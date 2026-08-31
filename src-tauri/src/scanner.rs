@@ -106,43 +106,57 @@ impl Scanner {
     }
 
     pub fn get_default_scan_paths() -> Vec<PathBuf> {
-        let mut paths = Vec::new();
+        // Collect all fixed drives first
+        let drives = Self::get_drives();
+        let drive_roots: std::collections::HashSet<PathBuf> = drives
+            .iter()
+            .map(|d| PathBuf::from(&d.mount_point))
+            .filter(|p| p.exists())
+            .collect();
 
-        // 1. High-yield user cache & temp locations
-        if let Some(local_app_data) = dirs::data_local_dir() {
-            paths.push(local_app_data.join("Temp"));
-            paths.push(local_app_data);
-        }
+        let mut paths: Vec<PathBuf> = Vec::new();
 
-        if let Some(roaming) = dirs::config_dir() {
-            paths.push(roaming);
-        }
+        // Only add specific high-yield subdirs if they are NOT already covered by a drive root
+        // that will be traversed anyway. This prevents double-walking AppData/Downloads/etc.
+        let home = dirs::home_dir();
+        let local_app_data = dirs::data_local_dir();
 
-        if let Some(home) = dirs::home_dir() {
-            paths.push(home.join(".cargo"));
-            paths.push(home.join(".nuget"));
-            paths.push(home.join(".gradle"));
-            paths.push(home.join(".m2"));
-            paths.push(home.join(".docker"));
-            paths.push(home.join("Downloads"));
-            paths.push(home.join("source"));
-            paths.push(home.join("Desktop"));
-            paths.push(home.join("Documents"));
-            paths.push(home.join("Videos"));
-        }
+        // C:\ covers everything on C — so only add specific subdirs for non-C drives
+        let c_root = PathBuf::from("C:\\");
+        let c_covered = drive_roots.contains(&c_root);
 
-        paths.push(PathBuf::from("C:\\Windows\\Temp"));
-
-        // 2. Discover and add all detected logical drive mount points (C:\, D:\, E:\, F:\, etc.)
-        for drive in Self::get_drives() {
-            let p = PathBuf::from(&drive.mount_point);
-            if p.exists() {
-                paths.push(p);
+        if !c_covered {
+            // C drive not in roots, so add targeted high-yield paths explicitly
+            if let Some(ref lad) = local_app_data {
+                paths.push(lad.join("Temp"));
+                paths.push(lad.clone());
             }
+            if let Some(ref home) = home {
+                paths.push(home.join(".cargo"));
+                paths.push(home.join(".nuget"));
+                paths.push(home.join(".gradle"));
+                paths.push(home.join(".m2"));
+                paths.push(home.join(".docker"));
+                paths.push(home.join("Downloads"));
+                paths.push(home.join("source"));
+            }
+            paths.push(PathBuf::from("C:\\Windows\\Temp"));
+        }
+
+        // Add all drive roots (they are each walked with their own depth limit in the scan loop)
+        for root in &drive_roots {
+            paths.push(root.clone());
         }
 
         let mut seen = std::collections::HashSet::new();
         paths.into_iter().filter(|p| p.exists() && seen.insert(p.clone())).collect()
+    }
+
+    /// Returns true if the given path is a raw drive root (e.g. "C:\", "D:\")
+    fn is_drive_root(path: &Path) -> bool {
+        let s = path.to_string_lossy();
+        // Matches patterns like "C:\", "D:\", "C:/", length 3
+        s.len() <= 3 && (s.ends_with(":\\") || s.ends_with(":/"))
     }
 
     pub fn scan_path_with_progress<F>(
@@ -164,14 +178,21 @@ impl Scanner {
 
         let running_processes = ProcessDetector::get_running_process_names();
 
+        // Track visited canonical paths to avoid re-scanning overlapping targets
+        let mut visited_dirs: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+
         for target in targets {
             if self.cancel_flag.load(Ordering::Relaxed) {
                 break;
             }
 
+            // Drive roots get a slightly shallower depth to keep scan time predictable;
+            // targeted specific subdirs get a deeper pass.
+            let depth = if Self::is_drive_root(target) { 8 } else { 9 };
+
             let mut walker = WalkDir::new(target)
                 .follow_links(false)
-                .max_depth(9)
+                .max_depth(depth)
                 .into_iter();
 
             while let Some(entry_res) = walker.next() {
@@ -191,6 +212,16 @@ impl Scanner {
                 let is_dir = entry.file_type().is_dir();
                 let norm_path = SafetyEngine::normalize_path(path);
                 let is_root_target = entry.depth() == 0 || (norm_path.len() <= 3 && (norm_path.ends_with(":\\") || norm_path.ends_with(':') || norm_path.ends_with(":/")));
+
+                // Skip directories already fully processed by a previous target (e.g. C:\Users\X\AppData
+                // first seen as an explicit target, then encountered again under C:\ root walk)
+                if is_dir && !is_root_target {
+                    let canonical = path.to_path_buf();
+                    if !visited_dirs.insert(canonical) {
+                        walker.skip_current_dir();
+                        continue;
+                    }
+                }
 
                 // Skip reparse points and junctions to avoid infinite or circular traversal
                 if SafetyEngine::is_reparse_point(path) {
@@ -284,6 +315,62 @@ impl Scanner {
                         }
 
                         continue;
+                    }
+
+                    // 1b. LARGE UNKNOWN DIRECTORY DETECTION
+                    // If a directory is large (>= 1GB) and not matched by any known rule,
+                    // surface it as a Large Directory candidate so the user can see it (e.g. game folders, VM images).
+                    // We do a fast shallow size estimate (depth 2) to avoid spending too long on each dir.
+                    // Only trigger at depth >= 2 to avoid flagging top-level dirs like Program Files itself.
+                    if entry.depth() >= 2 {
+                        const LARGE_DIR_THRESHOLD: u64 = 1_073_741_824; // 1 GB
+                        let (quick_size, quick_count) = Self::compute_dir_size_shallow(path, 2);
+                        if quick_size >= LARGE_DIR_THRESHOLD {
+                            // It's large — now get the real full size (skip traversal in main loop)
+                            walker.skip_current_dir();
+                            let (dir_size, dir_count) = Self::compute_dir_size_fast(path);
+                            total_files += dir_count as u64;
+                            total_bytes += dir_size;
+
+                            let id = format!("{:x}", Sha256::digest(norm_path.as_bytes()));
+                            let fingerprint = format!("{:x}", Sha256::digest(format!("{}:{}:largedir", norm_path, dir_size).as_bytes()));
+
+                            let candidate = FileCandidate {
+                                id,
+                                path: path.to_string_lossy().to_string(),
+                                name: entry.file_name().to_string_lossy().to_string(),
+                                extension: None,
+                                size_bytes: dir_size,
+                                created_at: None,
+                                modified_at: None,
+                                accessed_at: None,
+                                category: CategoryType::LargeFile,
+                                risk_level: RiskLevel::Review,
+                                confidence: 0.80,
+                                in_use: false,
+                                owning_process: None,
+                                related_application: None,
+                                delete_effect: "Large directory removed. Verify contents before deleting — this may contain games, VMs, or important project files.".to_string(),
+                                explanation: format!(
+                                    "Large unrecognised directory occupying {:.1} GB ({} files).",
+                                    dir_size as f64 / 1_073_741_824.0,
+                                    dir_count
+                                ),
+                                evidence: vec![
+                                    format!("Directory size: {:.1} GB", dir_size as f64 / 1_073_741_824.0),
+                                    "Not matched to any known cache or build artifact pattern".to_string(),
+                                ],
+                                is_directory: true,
+                                item_count: Some(dir_count),
+                                ai_provider: Some("rules".to_string()),
+                                fingerprint: Some(fingerprint),
+                            };
+
+                            potential_cleanup_bytes += dir_size;
+                            candidates.push(candidate);
+                            let _ = quick_count; // suppress unused warning
+                            continue;
+                        }
                     }
                 }
 
@@ -429,7 +516,9 @@ impl Scanner {
         (total_size, total_count)
     }
 
-    pub fn compute_dir_size(path: &Path, max_depth: usize) -> (u64, usize) {
+    /// Shallow size estimate — walks only `max_depth` levels deep.
+    /// Used as a fast probe to check if an unknown dir is large before committing to a full walk.
+    pub fn compute_dir_size_shallow(path: &Path, max_depth: usize) -> (u64, usize) {
         let mut total_size = 0u64;
         let mut total_count = 0usize;
 
@@ -445,7 +534,9 @@ impl Scanner {
         (total_size, total_count)
     }
 
+
     pub fn find_duplicates(targets: &[PathBuf]) -> Vec<DuplicateGroup> {
+
         let mut size_map: HashMap<u64, Vec<PathBuf>> = HashMap::new();
 
         // 1. Group files by size
