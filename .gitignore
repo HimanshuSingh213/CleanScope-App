@@ -1,0 +1,29 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+dist-ssr/
+*.local
+
+# Rust & Tauri builds
+src-tauri/target/
+src-tauri/gen/
+**/*.rs.bk
+
+# CleanScope local storage / test data
+%LOCALAPPDATA%/CleanScope/
+.env
+.env.local
+.env.*.local
+*.gguf
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
